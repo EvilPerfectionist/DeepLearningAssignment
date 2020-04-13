@@ -332,7 +332,7 @@ test_norm_imgs = Normalization(test_raw_images)
 
 mu1, sigma1 = 0, 1 / math.sqrt(dim)
 W1 = np.random.normal(mu1, sigma1, (hid_dim[0], dim))
-b1 = np.zeros((hid_dim, 1))
+b1 = np.zeros((hid_dim[0], 1))
 
 mu2, sigma2 = 0, 1 / math.sqrt(hid_dim[0])
 W2 = np.random.normal(mu2, sigma2, (hid_dim[1], hid_dim[0]))
@@ -345,9 +345,16 @@ b3 = np.zeros((num_labs, 1))
 lamda = 3.16e-4
 
 final_W1, final_b1, final_W2, final_b2 = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, W1, b1, W2, b2, lamda, 100, 1e-5, 1e-1, 980, 4)
-acc = ComputeAccuracy(test_norm_imgs, test_labels, final_W1, final_b1, final_W2, final_b2)
-print(acc)
+# acc = ComputeAccuracy(test_norm_imgs, test_labels, final_W1, final_b1, final_W2, final_b2)
+# print(acc)
 
-aa = np.array([1, 2, 3])
-print(aa)
-print(aa.shape)
+# grad_list1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], training_paras, 0, 1e-5)
+# grad_list2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], training_paras, 0, 1e-5)
+# grad_list3 = ComputeGradients(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], training_paras, 0)
+# print([grad_list3[0] - grad_list2[0], grad_list3[1] - grad_list2[1], grad_list3[2] - grad_list2[2], grad_list3[3] - grad_list2[3]])
+
+# aa = np.array([[1, 2, 3]])
+# bb = np.array([[4, 5, 6]])
+# cc = [aa, bb]
+# print(cc[1])
+# print(len(cc))
