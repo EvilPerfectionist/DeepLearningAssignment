@@ -51,21 +51,21 @@ def Normalization(raw_images):
     norm = (raw_images - mean[:,None]) / std[:,None]
     return norm
 
-def EvaluateClassifier(X, W1, b1, W2, b2):
-    s1 = np.dot(W1, X) + b1
+def EvaluateClassifier(X, paras):
+    s1 = np.dot(paras["W"][0], X) + paras["b"][0]
     h = np.maximum(0, s1)
-    s = np.dot(W2, h) + b2
+    s = np.dot(paras["W"][1], h) + paras["b"][1]
     p = softmax(s)
     return p
 
-def ComputeAccuracy(X, y, W1, b1, W2, b2):
-    p = EvaluateClassifier(X, W1, b1, W2, b2)
+def ComputeAccuracy(X, y, paras):
+    p = EvaluateClassifier(X, paras)
     k = np.argmax(p, axis=0)
     acc = 1 - np.count_nonzero(k - y) / len(k)
     return acc
 
-def ComputeLoss(X, Y, W1, b1, W2, b2):
-    P = EvaluateClassifier(X, W1, b1, W2, b2)
+def ComputeLoss(X, Y, paras):
+    P = EvaluateClassifier(X, paras)
     l = 0.0
     for i in range(Y.shape[1]):
         y = Y[:, [i]]
@@ -74,14 +74,14 @@ def ComputeLoss(X, Y, W1, b1, W2, b2):
     L = l / X.shape[1]
     return L
 
-def ComputeCost(X, Y, W1, b1, W2, b2, lamda):
-    P = EvaluateClassifier(X, W1, b1, W2, b2)
+def ComputeCost(X, Y, paras, lamda):
+    P = EvaluateClassifier(X, paras)
     l = 0.0
     for i in range(Y.shape[1]):
         y = Y[:, [i]]
         p = P[:, [i]]
         l += -np.log(np.dot(y.T, p))[0][0]
-    reg = lamda * (np.sum(np.square(W1)) + np.sum(np.square(W2)))
+    reg = lamda * (np.sum(np.square(paras["W"][0])) + np.sum(np.square(paras["W"][1])))
     J = l / X.shape[1] + reg
     return J
 
@@ -181,23 +181,23 @@ def ComputeGradsNumSlow(X, Y, W1, b1, W2, b2, lamda, h):
 
 	return [grad_W1, grad_b1, grad_W2, grad_b2]
 
-def ComputeGradients(X, Y, W1, b1, W2, b2, lamda):
-    s1 = np.dot(W1, X) + b1
+def ComputeGradients(X, Y, paras, lamda):
+    s1 = np.dot(paras["W"][0], X) + paras["b"][0]
     h = np.maximum(0, s1)
-    s = np.dot(W2, h) + b2
+    s = np.dot(paras["W"][1], h) + paras["b"][1]
     P = softmax(s)
     G = -(Y - P)
-    grad_W2 = np.dot(G, h.T) / G.shape[1] + 2 * lamda * W2
+    grad_W2 = np.dot(G, h.T) / G.shape[1] + 2 * lamda * paras["W"][1]
     grad_b2 = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
 
-    G = np.dot(W2.T, G)
+    G = np.dot(paras["W"][1].T, G)
     H = np.where(h == 0, h, 1)
     G = np.multiply(G, H)
-    grad_W1 = np.dot(G, X.T) / G.shape[1] + 2 * lamda * W1
+    grad_W1 = np.dot(G, X.T) / G.shape[1] + 2 * lamda * paras["W"][0]
     grad_b1 = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
     return grad_W1, grad_b1, grad_W2, grad_b2
 
-def MiniBatchGD(X_train, Y_train, X_val, Y_val, W1, b1, W2, b2, lamda, n_batch, eta_min, eta_max, n_s, n_epochs):
+def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, eta_max, n_s, n_epochs):
     y_train =  normal_representation(Y_train)
     y_val = normal_representation(Y_val)
 
@@ -208,19 +208,19 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, W1, b1, W2, b2, lamda, n_batch, 
     train_acc_list = []
     val_acc_list = []
 
-    train_cost = ComputeCost(X_train, Y_train, W1, b1, W2, b2, lamda)
+    train_cost = ComputeCost(X_train, Y_train, paras, lamda)
     train_cost_list.append(train_cost)
-    val_cost = ComputeCost(X_val, Y_val, W1, b1, W2, b2, lamda)
+    val_cost = ComputeCost(X_val, Y_val, paras, lamda)
     val_cost_list.append(val_cost)
 
-    train_loss = ComputeLoss(X_train, Y_train, W1, b1, W2, b2)
+    train_loss = ComputeLoss(X_train, Y_train, paras)
     train_loss_list.append(train_loss)
-    val_loss = ComputeLoss(X_val, Y_val, W1, b1, W2, b2)
+    val_loss = ComputeLoss(X_val, Y_val, paras)
     val_loss_list.append(val_loss)
 
-    train_acc = ComputeAccuracy(X_train, y_train, W1, b1, W2, b2)
+    train_acc = ComputeAccuracy(X_train, y_train, paras)
     train_acc_list.append(train_acc)
-    val_acc = ComputeAccuracy(X_val, y_val, W1, b1, W2, b2)
+    val_acc = ComputeAccuracy(X_val, y_val, paras)
     val_acc_list.append(val_acc)
 
     for i in range(n_epochs):
@@ -234,7 +234,7 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, W1, b1, W2, b2, lamda, n_batch, 
             j_end = (j + 1) * n_batch
             Xbatch = shuffled_X[:, j_start:j_end]
             Ybatch = shuffled_Y[:, j_start:j_end]
-            grad_W1, grad_b1, grad_W2, grad_b2 = ComputeGradients(Xbatch, Ybatch, W1, b1, W2, b2, lamda)
+            grad_W1, grad_b1, grad_W2, grad_b2 = ComputeGradients(Xbatch, Ybatch, paras, lamda)
             if i * loop < n_s:
                 eta_t = eta_min + (i * loop + j) / n_s * (eta_max - eta_min)
             elif 1 * n_s <= i * loop < 2 * n_s:
@@ -258,24 +258,24 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, W1, b1, W2, b2, lamda, n_batch, 
             else:
                 break;
 
-            W1 -= eta_t * grad_W1
-            b1 -= eta_t * grad_b1
-            W2 -= eta_t * grad_W2
-            b2 -= eta_t * grad_b2
+            paras["W"][0] -= eta_t * grad_W1
+            paras["b"][0] -= eta_t * grad_b1
+            paras["W"][1] -= eta_t * grad_W2
+            paras["b"][1] -= eta_t * grad_b2
 
-        train_cost = ComputeCost(X_train, Y_train, W1, b1, W2, b2, lamda)
+        train_cost = ComputeCost(X_train, Y_train, paras, lamda)
         train_cost_list.append(train_cost)
-        val_cost = ComputeCost(X_val, Y_val, W1, b1, W2, b2, lamda)
+        val_cost = ComputeCost(X_val, Y_val, paras, lamda)
         val_cost_list.append(val_cost)
 
-        train_loss = ComputeLoss(X_train, Y_train, W1, b1, W2, b2)
+        train_loss = ComputeLoss(X_train, Y_train, paras)
         train_loss_list.append(train_loss)
-        val_loss = ComputeLoss(X_val, Y_val, W1, b1, W2, b2)
+        val_loss = ComputeLoss(X_val, Y_val, paras)
         val_loss_list.append(val_loss)
 
-        train_acc = ComputeAccuracy(X_train, y_train, W1, b1, W2, b2)
+        train_acc = ComputeAccuracy(X_train, y_train, paras)
         train_acc_list.append(train_acc)
-        val_acc = ComputeAccuracy(X_val, y_val, W1, b1, W2, b2)
+        val_acc = ComputeAccuracy(X_val, y_val, paras)
         val_acc_list.append(val_acc)
 
         print(len(train_cost_list))
@@ -348,7 +348,7 @@ paras = Initialization(dims)
 
 lamda = 3.16e-4
 
-final_W1, final_b1, final_W2, final_b2 = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras["W"][0], paras["b"][0], paras["W"][1], paras["b"][1], lamda, 100, 1e-5, 1e-1, 980, 12)
+final_W1, final_b1, final_W2, final_b2 = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 980, 12)
 # acc = ComputeAccuracy(test_norm_imgs, test_labels, final_W1, final_b1, final_W2, final_b2)
 # print(acc)
 
