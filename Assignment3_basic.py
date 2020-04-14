@@ -2,10 +2,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 
-num_imgs = 10000
 dim = 3072
 num_labs = 10
-hid_dim = [50, 50]
+dims = [3072, 50, 10]
+
+def Initialization(dims):
+    W_list = []
+    b_list = []
+
+    for i in range(len(dims) - 1):
+        mu, sigma = 0, 1 / math.sqrt(dims[i])
+        W = np.random.normal(mu, sigma, (dims[i + 1], dims[i]))
+        b = np.zeros((dims[i + 1], 1))
+        W_list.append(W)
+        b_list.append(b)
+
+    paras = {'W': W_list, 'b': b_list}
+
+    return paras
 
 def softmax(x):
 	""" Standard definition of the softmax function """
@@ -330,21 +344,11 @@ train_norm_imgs = Normalization(train_raw_images)
 val_norm_imgs = Normalization(val_raw_images)
 test_norm_imgs = Normalization(test_raw_images)
 
-mu1, sigma1 = 0, 1 / math.sqrt(dim)
-W1 = np.random.normal(mu1, sigma1, (hid_dim[0], dim))
-b1 = np.zeros((hid_dim[0], 1))
-
-mu2, sigma2 = 0, 1 / math.sqrt(hid_dim[0])
-W2 = np.random.normal(mu2, sigma2, (hid_dim[1], hid_dim[0]))
-b2 = np.zeros((hid_dim[1], 1))
-
-mu3, sigma3 = 0, 1 / math.sqrt(hid_dim[1])
-W3 = np.random.normal(mu3, sigma3, (num_labs, hid_dim[1]))
-b3 = np.zeros((num_labs, 1))
+paras = Initialization(dims)
 
 lamda = 3.16e-4
 
-final_W1, final_b1, final_W2, final_b2 = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, W1, b1, W2, b2, lamda, 100, 1e-5, 1e-1, 980, 4)
+final_W1, final_b1, final_W2, final_b2 = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras["W"][0], paras["b"][0], paras["W"][1], paras["b"][1], lamda, 100, 1e-5, 1e-1, 980, 12)
 # acc = ComputeAccuracy(test_norm_imgs, test_labels, final_W1, final_b1, final_W2, final_b2)
 # print(acc)
 
