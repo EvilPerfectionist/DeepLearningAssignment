@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+import copy
 
 dim = 3072
 num_labs = 10
@@ -85,101 +86,138 @@ def ComputeCost(X, Y, paras, lamda):
     J = l / X.shape[1] + reg
     return J
 
-def ComputeGradsNum(X, Y, W1, b1, W2, b2, lamda, h):
-	""" Converted from matlab code """
+# def ComputeGradsNum(X, Y, paras, lamda, h):
+# 	""" Converted from matlab code """
+#
+# 	grad_W1 = np.zeros(paras["W"][0].shape);
+# 	grad_b1 = np.zeros((len(paras["b"][0]), 1));
+# 	grad_W2 = np.zeros(paras["W"][1].shape);
+# 	grad_b2 = np.zeros((len(paras["b"][1]), 1));
+#
+# 	c = ComputeCost(X, Y, paras, lamda);
+# 	paras_try = copy.deepcopy(paras)
+#
+# 	for i in range(len(paras["b"][0])):
+# 		b1_try = np.array(paras["b"][0])
+# 		b1_try[i] += h
+# 		paras_try["b"][0] = b1_try
+# 		c2 = ComputeCost(X, Y, paras_try, lamda)
+# 		grad_b1[i] = (c2 - c) / h
+#
+# 	paras_try = copy.deepcopy(paras)
+# 	for i in range(paras["W"][0].shape[0]):
+# 		for j in range(paras["W"][0].shape[1]):
+# 			W1_try = np.array(paras["W"][0])
+# 			W1_try[i,j] += h
+# 			paras_try["W"][0] = W1_try
+# 			c2 = ComputeCost(X, Y, paras_try, lamda)
+# 			grad_W1[i,j] = (c2-c) / h
+#
+# 	paras_try = copy.deepcopy(paras)
+# 	paras_try["b"][1][-1] = 0.01
+# 	for i in range(len(paras["b"][1])):
+# 		b2_try = np.array(paras["b"][1])
+# 		b2_try[i] += h
+# 		paras_try["b"][1] = b2_try
+# 		c2 = ComputeCost(X, Y, paras_try, lamda)
+# 		grad_b2[i] = (c2 - c) / h
+#
+# 	paras_try = copy.deepcopy(paras)
+# 	for i in range(paras["W"][1].shape[0]):
+# 		for j in range(paras["W"][1].shape[1]):
+# 			W2_try = np.array(paras["W"][1])
+# 			W2_try[i,j] += h
+# 			paras_try["W"][1] = W2_try
+# 			c2 = ComputeCost(X, Y, paras_try, lamda)
+# 			grad_W2[i,j] = (c2-c) / h
+#
+# 	return [grad_W1, grad_b1, grad_W2, grad_b2]
 
-	grad_W1 = np.zeros(W1.shape);
-	grad_b1 = np.zeros((len(b1), 1));
-	grad_W2 = np.zeros(W2.shape);
-	grad_b2 = np.zeros((len(b2), 1));
-
-	c = ComputeCost(X, Y, W1, b1, W2, b2, lamda);
-
-	for i in range(len(b1)):
-		b1_try = np.array(b1)
-		b1_try[i] += h
-		c2 = ComputeCost(X, Y, W1, b1_try, W2, b2, lamda)
-		grad_b1[i] = (c2 - c) / h
-
-	for i in range(W1.shape[0]):
-		for j in range(W1.shape[1]):
-			W1_try = np.array(W1)
-			W1_try[i,j] += h
-			c2 = ComputeCost(X, Y, W1_try, b1, W2, b2, lamda)
-			grad_W1[i,j] = (c2-c) / h
-
-	for i in range(len(b2)):
-		b2_try = np.array(b2)
-		b2_try[i] += h
-		c2 = ComputeCost(X, Y, W1, b1, W2, b2_try, lamda)
-		grad_b2[i] = (c2 - c) / h
-
-	for i in range(W2.shape[0]):
-		for j in range(W2.shape[1]):
-			W2_try = np.array(W2)
-			W2_try[i,j] += h
-			c2 = ComputeCost(X, Y, W1, b1, W2_try, b2, lamda)
-			grad_W2[i,j] = (c2-c) / h
-
-	return [grad_W1, grad_b1, grad_W2, grad_b2]
-
-def ComputeGradsNumSlow(X, Y, W1, b1, W2, b2, lamda, h):
-	""" Converted from matlab code """
-
-	grad_W1 = np.zeros(W1.shape);
-	grad_b1 = np.zeros((len(b1), 1));
-	grad_W2 = np.zeros(W2.shape);
-	grad_b2 = np.zeros((len(b2), 1));
-
-	c = ComputeCost(X, Y, W1, b1, W2, b2, lamda);
-
-	for i in range(len(b1)):
-		b1_try = np.array(b1)
-		b1_try[i] -= h
-		c1 = ComputeCost(X, Y, W1, b1_try, W2, b2, lamda)
-
-		b1_try = np.array(b1)
-		b1_try[i] += h
-		c2 = ComputeCost(X, Y, W1, b1_try, W2, b2, lamda)
-
-		grad_b1[i] = (c2 - c1) / (2 * h)
-
-	for i in range(W1.shape[0]):
-		for j in range(W1.shape[1]):
-			W1_try = np.array(W1)
-			W1_try[i,j] -= h
-			c1 = ComputeCost(X, Y, W1_try, b1, W2, b2, lamda)
-
-			W1_try = np.array(W1)
-			W1_try[i,j] += h
-			c2 = ComputeCost(X, Y, W1_try, b1, W2, b2, lamda)
-
-			grad_W1[i,j] = (c2 - c1) / (2 * h)
-
-	for i in range(len(b2)):
-		b2_try = np.array(b2)
-		b2_try[i] -= h
-		c1 = ComputeCost(X, Y, W1, b1, W2, b2_try, lamda)
-
-		b2_try = np.array(b2)
-		b2_try[i] += h
-		c2 = ComputeCost(X, Y, W1, b1, W2, b2_try, lamda)
-
-		grad_b2[i] = (c2 - c1) / (2 * h)
-
-	for i in range(W2.shape[0]):
-		for j in range(W2.shape[1]):
-			W2_try = np.array(W2)
-			W2_try[i,j] -= h
-			c1 = ComputeCost(X, Y, W1, b1, W2_try, b2, lamda)
-
-			W2_try = np.array(W2)
-			W2_try[i,j] += h
-			c2 = ComputeCost(X, Y, W1, b1, W2_try, b2, lamda)
-
-			grad_W2[i,j] = (c2 - c1) / (2 * h)
-
-	return [grad_W1, grad_b1, grad_W2, grad_b2]
+# def ComputeGradsNum(X, Y, paras, lamda, h):
+#
+#     grad_W_list = []
+#     grad_b_list = []
+#
+#     c = ComputeCost(X, Y, paras, lamda);
+#
+#     for i in range(len(paras["b"])):
+#         grad_b = np.zeros((len(paras["b"][i]), 1))
+#         paras_try = paras
+#
+#         for j in range(len(paras["b"][i])):
+#             b_try = np.array(paras["b"][i])
+#             b_try[j] += h
+#             paras_try["b"][i] = b_try
+#             c2 = ComputeCost(X, Y, paras_try, lamda)
+#             grad_b[j] = (c2 - c) / h
+#
+#         grad_b_list.append(grad_b)
+#
+#     for k in range(len(paras["W"])):
+#         grad_W = np.zeros(paras["W"][k].shape)
+#         paras_try = paras
+#
+#         for i in range(paras["W"][k].shape[0]):
+#             for j in range(paras["W"][k].shape[1]):
+#                 W_try = np.array(paras["W"][k])
+#                 W_try[i,j] += h
+#                 paras_try["W"][k] = W_try
+#                 c2 = ComputeCost(X, Y, paras_try, lamda)
+#                 grad_W[i,j] = (c2-c) / h
+#
+#         grad_W_list.append(grad_W)
+#
+#     update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list}
+#
+#     return update_para
+#
+# def ComputeGradsNumSlow(X, Y, paras, lamda, h):
+#
+#     grad_W_list = []
+#     grad_b_list = []
+#
+#     for i in range(len(paras["b"])):
+#         grad_b = np.zeros((len(paras["b"][i]), 1))
+#         paras_try = paras
+#
+#         for j in range(len(paras["b"][i])):
+#             b_try = np.array(paras["b"][i])
+#             b_try[j] -= h
+#             paras_try["b"][i] = b_try
+#             c1 = ComputeCost(X, Y, paras_try, lamda)
+#
+#             b_try = np.array(paras["b"][i])
+#             b_try[j] += h
+#             paras_try["b"][i] = b_try
+#             c2 = ComputeCost(X, Y, paras_try, lamda)
+#
+#             grad_b[j] = (c2 - c1) / (2 * h)
+#
+#         grad_b_list.append(grad_b)
+#
+#     for k in range(len(paras["W"])):
+#         grad_W = np.zeros(paras["W"][k].shape)
+#         paras_try = paras
+#
+#         for i in range(paras["W"][k].shape[0]):
+#             for j in range(paras["W"][k].shape[1]):
+#                 W_try = np.array(paras["W"][k])
+#                 W_try[i,j] -= h
+#                 paras_try["W"][k] = W_try
+#                 c1 = ComputeCost(X, Y, paras_try, lamda)
+#
+#                 W_try = np.array(paras["W"][k])
+#                 W_try[i,j] += h
+#                 paras_try["W"][k] = W_try
+#                 c2 = ComputeCost(X, Y, paras_try, lamda)
+#
+#                 grad_W[i,j] = (c2 - c1) / (2 * h)
+#
+#         grad_W_list.append(grad_W)
+#
+#     update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list}
+#
+#     return update_para
 
 def ComputeGradients(X, Y, paras, lamda):
     s1 = np.dot(paras["W"][0], X) + paras["b"][0]
@@ -348,17 +386,25 @@ paras = Initialization(dims)
 
 lamda = 3.16e-4
 
-final_W1, final_b1, final_W2, final_b2 = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 980, 12)
+#final_W1, final_b1, final_W2, final_b2 = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 980, 12)
 # acc = ComputeAccuracy(test_norm_imgs, test_labels, final_W1, final_b1, final_W2, final_b2)
 # print(acc)
 
-# grad_list1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], training_paras, 0, 1e-5)
-# grad_list2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], training_paras, 0, 1e-5)
-# grad_list3 = ComputeGradients(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], training_paras, 0)
-# print([grad_list3[0] - grad_list2[0], grad_list3[1] - grad_list2[1], grad_list3[2] - grad_list2[2], grad_list3[3] - grad_list2[3]])
-
+grad_list1 = ComputeGradsNum(train_norm_imgs[:, [0]], train_one_hot_labels[:, [0]], paras, 0, 1e-5)
+#update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, [0]], train_one_hot_labels[:, [0]], paras, 0, 1e-5)
+grad_W1, grad_b1, grad_W2, grad_b2 = ComputeGradients(train_norm_imgs[:, [0]], train_one_hot_labels[:, [0]], paras, 0)
+#print([update_para1["grad_W"][0] - update_para2["grad_W"][0], update_para1["grad_b"][0] - update_para2["grad_b"][0], update_para1["grad_W"][1] - update_para2["grad_W"][1], update_para1["grad_b"][1] - update_para2["grad_b"][1]])
+#print([grad_W1 - update_para1["grad_W"][0], grad_b1 - update_para1["grad_b"][0], grad_W2 - update_para1["grad_W"][1], grad_b2 - update_para1["grad_b"][1]])
+print([grad_list1[0] - grad_W1, grad_list1[1] - grad_b1, grad_list1[2] - grad_W2, grad_list1[3] - grad_b2])
 # aa = np.array([[1, 2, 3]])
 # bb = np.array([[4, 5, 6]])
 # cc = [aa, bb]
 # print(cc[1])
 # print(len(cc))
+
+# aa = {"m": 1, "n": 2}
+# cc = aa.copy()
+# bb = aa['n']
+# bb += 1
+# cc['n'] = bb
+# print(aa['n'])
