@@ -173,20 +173,38 @@ def ComputeGradsNumSlow(X, Y, paras, lamda, h):
     return update_para
 
 def ComputeGradients(X, Y, paras, lamda):
-    s1 = np.dot(paras["W"][0], X) + paras["b"][0]
-    h = np.maximum(0, s1)
-    s = np.dot(paras["W"][1], h) + paras["b"][1]
-    P = softmax(s)
-    G = -(Y - P)
-    grad_W2 = np.dot(G, h.T) / G.shape[1] + 2 * lamda * paras["W"][1]
-    grad_b2 = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
+    grad_W_list = []
+    grad_b_list = []
+    X_list = []
 
-    G = np.dot(paras["W"][1].T, G)
-    H = np.where(h == 0, h, 1)
-    G = np.multiply(G, H)
-    grad_W1 = np.dot(G, X.T) / G.shape[1] + 2 * lamda * paras["W"][0]
-    grad_b1 = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
-    return grad_W1, grad_b1, grad_W2, grad_b2
+    X_list.append(X)
+    for i in range(len(paras["W"]) - 1):
+        S1 = np.dot(paras["W"][i], X) + paras["b"][i]
+        X = np.maximum(0, S1)
+        X_list.append(X)
+
+    S = np.dot(paras["W"][-1], X) + paras["b"][-1]
+    P = softmax(S)
+    G = -(Y - P)
+
+    for j in range(len(paras["W"]) - 1):
+        grad_W = np.dot(G, X_list[-(j + 1)].T) / G.shape[1] + 2 * lamda * paras["W"][-(j + 1)]
+        grad_b = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
+        grad_W_list.append(grad_W)
+        grad_b_list.append(grad_b)
+
+        G = np.dot(paras["W"][-(j + 1)].T, G)
+        h = X_list[-(j + 1)]
+        H = np.where(h == 0, h, 1)
+        G = np.multiply(G, H)
+
+    grad_W = np.dot(G, X_list[0].T) / G.shape[1] + 2 * lamda * paras["W"][0]
+    grad_b = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
+    grad_W_list.append(grad_W)
+    grad_b_list.append(grad_b)
+
+    update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list}
+    return update_para
 
 def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, eta_max, n_s, n_epochs):
     y_train =  normal_representation(Y_train)
@@ -225,7 +243,7 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, 
             j_end = (j + 1) * n_batch
             Xbatch = shuffled_X[:, j_start:j_end]
             Ybatch = shuffled_Y[:, j_start:j_end]
-            grad_W1, grad_b1, grad_W2, grad_b2 = ComputeGradients(Xbatch, Ybatch, paras, lamda)
+            update_para = ComputeGradients(Xbatch, Ybatch, paras, lamda)
             if i * loop < n_s:
                 eta_t = eta_min + (i * loop + j) / n_s * (eta_max - eta_min)
             elif 1 * n_s <= i * loop < 2 * n_s:
@@ -249,10 +267,9 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, 
             else:
                 break;
 
-            paras["W"][0] -= eta_t * grad_W1
-            paras["b"][0] -= eta_t * grad_b1
-            paras["W"][1] -= eta_t * grad_W2
-            paras["b"][1] -= eta_t * grad_b2
+            if i in range(len(paras["W"])):
+                paras["W"][i] = eta_t * update_para["grad_W"][-(i + 1)]
+                paras["b"][i] = eta_t * update_para["grad_b"][-(i + 1)]
 
         train_cost = ComputeCost(X_train, Y_train, paras, lamda)
         train_cost_list.append(train_cost)
@@ -306,7 +323,7 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, 
 
     plt.savefig(str(round(lamda, 6)) + "image.png")
     plt.show()
-    return W1, b1, W2, b2
+    return paras
 
 origin_dataset = LoadBatch('Datasets/cifar-10-batches-py/data_batch_1')
 total_raw_images = np.transpose(origin_dataset[bytes("data", "utf-8")] / 255.0)
@@ -339,24 +356,20 @@ paras = Initialization(dims)
 
 lamda = 3.16e-4
 
-#final_W1, final_b1, final_W2, final_b2 = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 980, 12)
+final_para = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 980, 12)
 # acc = ComputeAccuracy(test_norm_imgs, test_labels, final_W1, final_b1, final_W2, final_b2)
 # print(acc)
 
-update_para1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
-update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
-grad_W1, grad_b1, grad_W2, grad_b2 = ComputeGradients(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0)
+#update_para1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
+#update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
+#update_para3 = ComputeGradients(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0)
 #print([update_para1["grad_W"][0] - update_para2["grad_W"][0], update_para1["grad_b"][0] - update_para2["grad_b"][0], update_para1["grad_W"][1] - update_para2["grad_W"][1], update_para1["grad_b"][1] - update_para2["grad_b"][1]])
-print([grad_W1 - update_para1["grad_W"][0], grad_b1 - update_para1["grad_b"][0], grad_W2 - update_para1["grad_W"][1], grad_b2 - update_para1["grad_b"][1]])
+#print([update_para3["grad_W"][1] - update_para1["grad_W"][0], update_para3["grad_b"][1] - update_para1["grad_b"][0], update_para3["grad_W"][0] - update_para1["grad_W"][1], update_para3["grad_b"][0] - update_para1["grad_b"][1]])
 # aa = np.array([[1, 2, 3]])
 # bb = np.array([[4, 5, 6]])
 # cc = [aa, bb]
 # print(cc[1])
 # print(len(cc))
 
-# aa = {"m": 1, "n": 2}
-# cc = aa.copy()
-# bb = aa['n']
-# bb += 1
-# cc['n'] = bb
-# print(aa['n'])
+aa = [1, 2, 3]
+print(aa[-3])
