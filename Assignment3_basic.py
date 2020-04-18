@@ -5,7 +5,7 @@ import copy
 
 dim = 3072
 num_labs = 10
-dims = [3072, 50, 50, 50, 10]
+dims = [3072, 50, 30, 20, 20, 10, 10, 10, 10, 10]
 
 def Initialization(dims):
     W_list = []
@@ -338,12 +338,12 @@ for i in range(4):
     total_labels = np.concatenate((total_labels, labels), axis=None)
 test_dataset = LoadBatch('Datasets/cifar-10-batches-py/test_batch')
 
-train_raw_images = total_raw_images[:, 0: total_raw_images.shape[1] - 1000]
-val_raw_images = total_raw_images[:, total_raw_images.shape[1] - 1000: total_raw_images.shape[1]]
+train_raw_images = total_raw_images[:, 0: total_raw_images.shape[1] - 5000]
+val_raw_images = total_raw_images[:, total_raw_images.shape[1] - 5000: total_raw_images.shape[1]]
 test_raw_images = np.transpose(test_dataset[bytes("data", "utf-8")] / 255.0)
 
-train_labels = total_labels[0: len(total_labels) - 1000]
-val_labels = total_labels[len(total_labels) - 1000: len(total_labels)]
+train_labels = total_labels[0: len(total_labels) - 5000]
+val_labels = total_labels[len(total_labels) - 5000: len(total_labels)]
 test_labels = test_dataset[bytes("labels", "utf-8")]
 
 train_one_hot_labels = one_hot_representation(train_labels)
@@ -356,11 +356,11 @@ test_norm_imgs = Normalization(test_raw_images)
 
 paras = Initialization(dims)
 
-lamda = 3.16e-4
+lamda = 0.005
 
-final_para = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 980, 12)
-# acc = ComputeAccuracy(test_norm_imgs, test_labels, final_W1, final_b1, final_W2, final_b2)
-# print(acc)
+final_para = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
+acc = ComputeAccuracy(test_norm_imgs, test_labels, final_para)
+print(acc)
 
 #update_para1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
 #update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
@@ -372,6 +372,3 @@ final_para = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, v
 # cc = [aa, bb]
 # print(cc[1])
 # print(len(cc))
-
-aa = [1, 2, 3]
-print(aa[-3])
