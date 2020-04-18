@@ -5,7 +5,7 @@ import copy
 
 dim = 3072
 num_labs = 10
-dims = [3072, 50, 10]
+dims = [3072, 50, 50, 50, 10]
 
 def Initialization(dims):
     W_list = []
@@ -53,11 +53,13 @@ def Normalization(raw_images):
     return norm
 
 def EvaluateClassifier(X, paras):
-    s1 = np.dot(paras["W"][0], X) + paras["b"][0]
-    h = np.maximum(0, s1)
-    s = np.dot(paras["W"][1], h) + paras["b"][1]
-    p = softmax(s)
-    return p
+    for i in range(len(paras["W"]) - 1):
+        S1 = np.dot(paras["W"][i], X) + paras["b"][i]
+        X = np.maximum(0, S1)
+
+    S = np.dot(paras["W"][-1], X) + paras["b"][-1]
+    P = softmax(S)
+    return P
 
 def ComputeAccuracy(X, y, paras):
     p = EvaluateClassifier(X, paras)
