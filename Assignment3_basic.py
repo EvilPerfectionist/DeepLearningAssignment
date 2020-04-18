@@ -267,9 +267,9 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, 
             else:
                 break;
 
-            if i in range(len(paras["W"])):
-                paras["W"][i] = eta_t * update_para["grad_W"][-(i + 1)]
-                paras["b"][i] = eta_t * update_para["grad_b"][-(i + 1)]
+            for k in range(len(paras["W"])):
+                paras["W"][k] -= eta_t * update_para["grad_W"][-(k + 1)]
+                paras["b"][k] -= eta_t * update_para["grad_b"][-(k + 1)]
 
         train_cost = ComputeCost(X_train, Y_train, paras, lamda)
         train_cost_list.append(train_cost)
