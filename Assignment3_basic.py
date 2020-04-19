@@ -46,11 +46,22 @@ def normal_representation(one_hot_labels):
         modified_labels[index] = label
     return modified_labels
 
-def Normalization(raw_images):
-    mean = np.mean(raw_images, axis = 1)
-    std = np.std(raw_images, axis = 1)
-    norm = (raw_images - mean[:,None]) / std[:,None]
+def Normalization(raw):
+    mean = np.mean(raw, axis = 1)
+    std = np.std(raw, axis = 1)
+    norm = (raw - mean[:,None]) / std[:,None]
     return norm
+
+def EvaluateClassifier_BN(X, paras):
+    for i in range(len(paras["W"]) - 1):
+        S1 = np.dot(paras["W"][i], X) + paras["b"][i]
+        S_norm = Normalization(S1)
+        S_rescale = np.multiply(paras["Gamma"], S_norm) + paras["Beta"]
+        X = np.maximum(0, S_rescale)
+
+    S = np.dot(paras["W"][-1], X) + paras["b"][-1]
+    P = softmax(S)
+    return P
 
 def EvaluateClassifier(X, paras):
     for i in range(len(paras["W"]) - 1):
@@ -199,6 +210,72 @@ def ComputeGradients(X, Y, paras, lamda):
         h = X_list[-(j + 1)]
         H = np.where(h == 0, h, 1)
         G = np.multiply(G, H)
+
+    grad_W = np.dot(G, X_list[0].T) / G.shape[1] + 2 * lamda * paras["W"][0]
+    grad_b = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
+    grad_W_list.append(grad_W)
+    grad_b_list.append(grad_b)
+
+    update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list}
+    return update_para
+
+def BatchNormBackPass(G, S_norm, S_mean, S_std):
+    theta = 1e-5
+    n = G.shape[1]
+    I_n = np.ones(n).reshape(-1, 1)
+    sigma1 = np.power(S_std + theta, -0.5).reshape(-1, 1)
+    sigma2 = np.power(S_std + theta, -1.5).reshape(-1, 1)
+    G1 = np.multiply(G, sigma1)
+    G2 = np.multiply(G, sigma2)
+    D = S_norm - S_mean.reshape(-1, 1)
+    c = np.dot(np.multiply(G2, D), I)
+    G = G1 - np.dot(np.dot(G1, I_n), I_n.T) / n - np.multiply(D, np.dot(c, I_n.T)) / n
+    return G
+
+
+def ComputeGradients_BN(X, Y, paras, lamda):
+    grad_W_list = []
+    grad_b_list = []
+    X_list = []
+    S_list = []
+    S_mean_list = []
+    S_std_list = []
+    S_norm_list = []
+
+    X_list.append(X)
+    for i in range(len(paras["W"]) - 1):
+        S1 = np.dot(paras["W"][i], X) + paras["b"][i]
+        S_mean = np.mean(S1, axis = 1)
+        S_std = np.std(S1, axis = 1)
+        S_norm = (S1 - S_mean[:,None]) / S_std[:,None]
+        S_rescale = np.multiply(paras["G"][i], S_norm) + paras["B"][i]
+        X = np.maximum(0, S_rescale)
+        S_list.append(S1)
+        S_mean_list.append(S_mean)
+        S_std_list.append(S_std)
+        S_norm_list.append(S_norm)
+        X_list.append(X)
+
+    S = np.dot(paras["W"][-1], X) + paras["b"][-1]
+    P = softmax(S)
+    G = -(Y - P)
+
+    for j in range(len(paras["W"]) - 1):
+        grad_W = np.dot(G, X_list[-(j + 1)].T) / G.shape[1] + 2 * lamda * paras["W"][-(j + 1)]
+        grad_b = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
+        grad_W_list.append(grad_W)
+        grad_b_list.append(grad_b)
+
+        G = np.dot(paras["W"][-(j + 1)].T, G)
+        h = X_list[-(j + 1)]
+        H = np.where(h == 0, h, 1)
+        G = np.multiply(G, H)
+
+        grad_G = np.dot(np.multiply(G, S_norm_list[-(j + 1)]), np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
+        grad_B = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
+
+        G = np.multiply(G, paras["G"][-(j + 1)])
+        G = BatchNormBackPass(G, S_norm_list[-(j + 1)], S_mean_list[-(j + 1)], S_std_list[-(j + 1)])
 
     grad_W = np.dot(G, X_list[0].T) / G.shape[1] + 2 * lamda * paras["W"][0]
     grad_b = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
@@ -358,9 +435,9 @@ paras = Initialization(dims)
 
 lamda = 0.005
 
-final_para = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
-acc = ComputeAccuracy(test_norm_imgs, test_labels, final_para)
-print(acc)
+# final_para = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
+# acc = ComputeAccuracy(test_norm_imgs, test_labels, final_para)
+# print(acc)
 
 #update_para1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
 #update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
@@ -372,3 +449,7 @@ print(acc)
 # cc = [aa, bb]
 # print(cc[1])
 # print(len(cc))
+aa = np.array([[1, 2, 3], [4, 5, 6]])
+cc = np.array([2, 3]).reshape(-1, 1).T
+# bb = np.multiply(aa, cc)
+print(aa - cc.T)
