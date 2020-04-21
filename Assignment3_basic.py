@@ -7,9 +7,12 @@ dim = 3072
 num_labs = 10
 dims = [3072, 50, 30, 20, 20, 10, 10, 10, 10, 10]
 
-def Initialization(dims):
+def Initialization(dims, with_bn):
     W_list = []
     b_list = []
+    if with_bn == True:
+        G_list = []
+        B_list = []
 
     for i in range(len(dims) - 1):
         mu, sigma = 0, 1 / math.sqrt(dims[i])
@@ -17,8 +20,17 @@ def Initialization(dims):
         b = np.zeros((dims[i + 1], 1))
         W_list.append(W)
         b_list.append(b)
+    if with_bn == True:
+        for j in range(len(dims) - 2):
+            G = np.ones((dims[j + 1], 1))
+            B = np.zeros((dims[j + 1], 1))
+            G_list.append(G)
+            B_list.append(B)
 
-    paras = {'W': W_list, 'b': b_list}
+    if with_bn == True:
+        paras = {'W': W_list, 'b': b_list, 'G': G_list, 'B': B_list}
+    else:
+        paras = {'W': W_list, 'b': b_list}
 
     return paras
 
@@ -56,7 +68,7 @@ def EvaluateClassifier_BN(X, paras):
     for i in range(len(paras["W"]) - 1):
         S1 = np.dot(paras["W"][i], X) + paras["b"][i]
         S_norm = Normalization(S1)
-        S_rescale = np.multiply(paras["Gamma"], S_norm) + paras["Beta"]
+        S_rescale = np.multiply(paras["G"][i], S_norm) + paras["B"][i]
         X = np.maximum(0, S_rescale)
 
     S = np.dot(paras["W"][-1], X) + paras["b"][-1]
@@ -96,6 +108,20 @@ def ComputeCost(X, Y, paras, lamda):
         p = P[:, [i]]
         l += -np.log(np.dot(y.T, p))[0][0]
     reg = lamda * (np.sum(np.square(paras["W"][0])) + np.sum(np.square(paras["W"][1])))
+    J = l / X.shape[1] + reg
+    return J
+
+def ComputeCost_BN(X, Y, paras, lamda):
+    P = EvaluateClassifier_BN(X, paras)
+    l = 0.0
+    weight = 0.0
+    for i in range(Y.shape[1]):
+        y = Y[:, [i]]
+        p = P[:, [i]]
+        l += -np.log(np.dot(y.T, p))[0][0]
+    for j in range(len(paras["W"])):
+        weight += np.sum(np.square(paras["W"][j]))
+    reg = lamda * weight
     J = l / X.shape[1] + reg
     return J
 
@@ -185,6 +211,94 @@ def ComputeGradsNumSlow(X, Y, paras, lamda, h):
 
     return update_para
 
+def ComputeGradsNum_BN(X, Y, paras, lamda, h):
+
+    grad_W_list = []
+    grad_b_list = []
+    grad_G_list = []
+    grad_B_list = []
+
+    for i in range(len(paras["b"])):
+        grad_b = np.zeros((len(paras["b"][i]), 1))
+        paras_try = copy.deepcopy(paras)
+
+        for j in range(len(paras["b"][i])):
+            b_try = np.array(paras["b"][i])
+            b_try[j] -= h
+            paras_try["b"][i] = b_try
+            c1 = ComputeCost_BN(X, Y, paras_try, lamda)
+
+            b_try = np.array(paras["b"][i])
+            b_try[j] += h
+            paras_try["b"][i] = b_try
+            c2 = ComputeCost_BN(X, Y, paras_try, lamda)
+
+            grad_b[j] = (c2 - c1) / (2 * h)
+
+        grad_b_list.append(grad_b)
+
+    for k in range(len(paras["W"])):
+        grad_W = np.zeros(paras["W"][k].shape)
+        paras_try = copy.deepcopy(paras)
+
+        for i in range(paras["W"][k].shape[0]):
+            for j in range(paras["W"][k].shape[1]):
+                W_try = np.array(paras["W"][k])
+                W_try[i,j] -= h
+                paras_try["W"][k] = W_try
+                c1 = ComputeCost_BN(X, Y, paras_try, lamda)
+
+                W_try = np.array(paras["W"][k])
+                W_try[i,j] += h
+                paras_try["W"][k] = W_try
+                c2 = ComputeCost_BN(X, Y, paras_try, lamda)
+
+                grad_W[i,j] = (c2 - c1) / (2 * h)
+
+        grad_W_list.append(grad_W)
+
+    for i in range(len(paras["G"])):
+        grad_G = np.zeros((len(paras["G"][i]), 1))
+        paras_try = copy.deepcopy(paras)
+
+        for j in range(len(paras["G"][i])):
+            G_try = np.array(paras["G"][i])
+            G_try[j] -= h
+            paras_try["G"][i] = G_try
+            c1 = ComputeCost_BN(X, Y, paras_try, lamda)
+
+            G_try = np.array(paras["G"][i])
+            G_try[j] += h
+            paras_try["G"][i] = G_try
+            c2 = ComputeCost_BN(X, Y, paras_try, lamda)
+
+            grad_G[j] = (c2 - c1) / (2 * h)
+
+        grad_G_list.append(grad_G)
+
+    for i in range(len(paras["B"])):
+        grad_B = np.zeros((len(paras["B"][i]), 1))
+        paras_try = copy.deepcopy(paras)
+
+        for j in range(len(paras["B"][i])):
+            B_try = np.array(paras["B"][i])
+            B_try[j] -= h
+            paras_try["B"][i] = B_try
+            c1 = ComputeCost_BN(X, Y, paras_try, lamda)
+
+            B_try = np.array(paras["B"][i])
+            B_try[j] += h
+            paras_try["B"][i] = B_try
+            c2 = ComputeCost_BN(X, Y, paras_try, lamda)
+
+            grad_B[j] = (c2 - c1) / (2 * h)
+
+        grad_B_list.append(grad_B)
+
+    update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list, 'grad_G': grad_G_list, 'grad_B': grad_B_list}
+
+    return update_para
+
 def ComputeGradients(X, Y, paras, lamda):
     grad_W_list = []
     grad_b_list = []
@@ -219,23 +333,24 @@ def ComputeGradients(X, Y, paras, lamda):
     update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list}
     return update_para
 
-def BatchNormBackPass(G, S_norm, S_mean, S_std):
-    theta = 1e-5
+def BatchNormBackPass(G, S_list, S_mean, S_std):
+    theta = 1e-10
     n = G.shape[1]
     I_n = np.ones(n).reshape(-1, 1)
     sigma1 = np.power(S_std + theta, -0.5).reshape(-1, 1)
     sigma2 = np.power(S_std + theta, -1.5).reshape(-1, 1)
     G1 = np.multiply(G, sigma1)
     G2 = np.multiply(G, sigma2)
-    D = S_norm - S_mean.reshape(-1, 1)
-    c = np.dot(np.multiply(G2, D), I)
+    D = S_list - S_mean.reshape(-1, 1)
+    c = np.dot(np.multiply(G2, D), I_n)
     G = G1 - np.dot(np.dot(G1, I_n), I_n.T) / n - np.multiply(D, np.dot(c, I_n.T)) / n
     return G
-
 
 def ComputeGradients_BN(X, Y, paras, lamda):
     grad_W_list = []
     grad_b_list = []
+    grad_G_list = []
+    grad_B_list = []
     X_list = []
     S_list = []
     S_mean_list = []
@@ -252,7 +367,7 @@ def ComputeGradients_BN(X, Y, paras, lamda):
         X = np.maximum(0, S_rescale)
         S_list.append(S1)
         S_mean_list.append(S_mean)
-        S_std_list.append(S_std)
+        S_std_list.append(np.power(S_std, 2))
         S_norm_list.append(S_norm)
         X_list.append(X)
 
@@ -261,6 +376,7 @@ def ComputeGradients_BN(X, Y, paras, lamda):
     G = -(Y - P)
 
     for j in range(len(paras["W"]) - 1):
+        print(G.shape[1])
         grad_W = np.dot(G, X_list[-(j + 1)].T) / G.shape[1] + 2 * lamda * paras["W"][-(j + 1)]
         grad_b = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
         grad_W_list.append(grad_W)
@@ -273,16 +389,18 @@ def ComputeGradients_BN(X, Y, paras, lamda):
 
         grad_G = np.dot(np.multiply(G, S_norm_list[-(j + 1)]), np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
         grad_B = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
+        grad_G_list.append(grad_G)
+        grad_B_list.append(grad_B)
 
         G = np.multiply(G, paras["G"][-(j + 1)])
-        G = BatchNormBackPass(G, S_norm_list[-(j + 1)], S_mean_list[-(j + 1)], S_std_list[-(j + 1)])
+        G = BatchNormBackPass(G, S_list[-(j + 1)], S_mean_list[-(j + 1)], S_std_list[-(j + 1)])
 
     grad_W = np.dot(G, X_list[0].T) / G.shape[1] + 2 * lamda * paras["W"][0]
     grad_b = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
     grad_W_list.append(grad_W)
     grad_b_list.append(grad_b)
 
-    update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list}
+    update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list, 'grad_G': grad_G_list, 'grad_B': grad_B_list}
     return update_para
 
 def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, eta_max, n_s, n_epochs):
@@ -431,7 +549,7 @@ train_norm_imgs = Normalization(train_raw_images)
 val_norm_imgs = Normalization(val_raw_images)
 test_norm_imgs = Normalization(test_raw_images)
 
-paras = Initialization(dims)
+paras = Initialization(dims, True)
 
 lamda = 0.005
 
@@ -442,7 +560,13 @@ lamda = 0.005
 #update_para1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
 #update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
 #update_para3 = ComputeGradients(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0)
+update_para4 = ComputeGradsNum_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
+update_para5 = ComputeGradients_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0)
+print([update_para5["grad_W"][5] - update_para4["grad_W"][-6], update_para5["grad_b"][5] - update_para4["grad_b"][-6]])
+print([update_para5["grad_G"][3] - update_para4["grad_G"][-4], update_para5["grad_B"][3] - update_para4["grad_B"][-4]])
 #print([update_para1["grad_W"][0] - update_para2["grad_W"][0], update_para1["grad_b"][0] - update_para2["grad_b"][0], update_para1["grad_W"][1] - update_para2["grad_W"][1], update_para1["grad_b"][1] - update_para2["grad_b"][1]])
+#print([update_para3["grad_W"][1] - update_para1["grad_W"][0], update_para3["grad_b"][1] - update_para1["grad_b"][0], update_para3["grad_W"][0] - update_para1["grad_W"][1], update_para3["grad_b"][0] - update_para1["grad_b"][1]])
+#print([update_para5["grad_W"][-1] - update_para4["grad_W"][0], update_para5["grad_b"][-1] - update_para4["grad_b"][0], update_para5["grad_W"][-2] - update_para4["grad_W"][1], update_para5["grad_b"][-2] - update_para4["grad_b"][1]])
 #print([update_para3["grad_W"][1] - update_para1["grad_W"][0], update_para3["grad_b"][1] - update_para1["grad_b"][0], update_para3["grad_W"][0] - update_para1["grad_W"][1], update_para3["grad_b"][0] - update_para1["grad_b"][1]])
 # aa = np.array([[1, 2, 3]])
 # bb = np.array([[4, 5, 6]])
