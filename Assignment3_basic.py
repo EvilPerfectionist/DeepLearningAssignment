@@ -22,7 +22,7 @@ def Initialization(dims, with_bn):
         b_list.append(b)
     if with_bn == True:
         for j in range(len(dims) - 2):
-            mu, sigma = 0, 2 / math.sqrt(dims[i])
+            mu, sigma = 0, 2 / math.sqrt(dims[j])
             G = np.random.normal(mu, sigma, (dims[j + 1], 1))
             B = np.random.normal(mu, sigma, (dims[j + 1], 1))
             G_list.append(G)
@@ -60,7 +60,7 @@ def normal_representation(one_hot_labels):
     return modified_labels
 
 def Normalization(raw):
-    theta = 1e-5
+    theta = 1e-10
     mean = np.mean(raw, axis = 1)
     var = np.var(raw, axis = 1)
     norm = (raw - mean[:,None]) / np.power(var[:,None] + theta, 0.5)
@@ -93,7 +93,7 @@ def ComputeAccuracy(X, y, paras):
     return acc
 
 def ComputeAccuracy_Test(X, y, paras, mean_av_list, var_av_list):
-    theta = 1e-5
+    theta = 1e-10
     for i in range(len(paras["W"]) - 1):
         S1 = np.dot(paras["W"][i], X) + paras["b"][i]
         S_mean = mean_av_list[i]
@@ -144,7 +144,7 @@ def ComputeCost_BN(X, Y, paras, lamda):
     return J
 
 def ComputeCost_Test(X, Y, paras, lamda, mean_av_list, var_av_list):
-    theta = 1e-5
+    theta = 1e-10
     for i in range(len(paras["W"]) - 1):
         S1 = np.dot(paras["W"][i], X) + paras["b"][i]
         S_mean = mean_av_list[i]
@@ -376,7 +376,7 @@ def ComputeGradients(X, Y, paras, lamda):
     return update_para
 
 def BatchNormBackPass(G, S_list, S_mean, S_var):
-    theta = 1e-5
+    theta = 1e-10
     n = G.shape[1]
     I_n = np.ones(n).reshape(-1, 1)
     sigma1 = np.power(S_var + theta, -0.5).reshape(-1, 1)
@@ -398,8 +398,8 @@ def ComputeGradients_BN(X, Y, paras, lamda, mean_av_list, var_av_list):
     S_mean_list = []
     S_var_list = []
     S_norm_list = []
-    alpha = 0.9
-    theta = 1e-5
+    alpha = 0.85
+    theta = 1e-10
 
     X_list.append(X)
     for i in range(len(paras["W"]) - 1):
@@ -448,8 +448,8 @@ def ComputeGradients_BN(X, Y, paras, lamda, mean_av_list, var_av_list):
         var_av_list = S_var_list
     else:
         for index in range(len(mean_av_list)):
-            mean_av_list[i] = alpha * mean_av_list[i] + (1 - alpha) * S_mean_list[i]
-            var_av_list[i] = alpha * var_av_list[i] + (1 - alpha) * S_var_list[i]
+            mean_av_list[index] = alpha * mean_av_list[index] + (1 - alpha) * S_mean_list[index]
+            var_av_list[index] = alpha * var_av_list[index] + (1 - alpha) * S_var_list[index]
 
     update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list, 'grad_G': grad_G_list, 'grad_B': grad_B_list}
     return update_para, mean_av_list, var_av_list
@@ -585,15 +585,12 @@ train_norm_imgs = Normalization(train_raw_images)
 val_norm_imgs = Normalization(val_raw_images)
 test_norm_imgs = Normalization(test_raw_images)
 
-for i in range(5):
-    paras = Initialization(dims, True)
-    l_min, l_max = -2.5, -2.1
-    l = l_min + (l_max - l_min) * i / 4.0
-    lamda = 10 ** l
+paras = Initialization(dims, True)
+lamda = 0.005
 
-    final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
-    acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
-    print(acc)
+final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
+acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
+print(acc)
 
 #update_para1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
 #update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
