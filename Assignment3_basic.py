@@ -5,7 +5,7 @@ import copy
 
 dim = 3072
 num_labs = 10
-dims = [3072, 50, 30, 20, 20, 10, 10, 10, 10, 10]
+dims = [3072, 50, 50, 10]
 
 def Initialization(dims, with_bn):
     W_list = []
@@ -15,15 +15,16 @@ def Initialization(dims, with_bn):
         B_list = []
 
     for i in range(len(dims) - 1):
-        mu, sigma = 0, 1 / math.sqrt(dims[i])
+        mu, sigma = 0, 2 / math.sqrt(dims[i])
         W = np.random.normal(mu, sigma, (dims[i + 1], dims[i]))
-        b = np.zeros((dims[i + 1], 1))
+        b = np.random.normal(mu, sigma, (dims[i + 1], 1))
         W_list.append(W)
         b_list.append(b)
     if with_bn == True:
         for j in range(len(dims) - 2):
-            G = np.ones((dims[j + 1], 1))
-            B = np.zeros((dims[j + 1], 1))
+            mu, sigma = 0, 2 / math.sqrt(dims[i])
+            G = np.random.normal(mu, sigma, (dims[j + 1], 1))
+            B = np.random.normal(mu, sigma, (dims[j + 1], 1))
             G_list.append(G)
             B_list.append(B)
 
@@ -59,9 +60,10 @@ def normal_representation(one_hot_labels):
     return modified_labels
 
 def Normalization(raw):
+    theta = 1e-5
     mean = np.mean(raw, axis = 1)
-    std = np.std(raw, axis = 1)
-    norm = (raw - mean[:,None]) / std[:,None]
+    var = np.var(raw, axis = 1)
+    norm = (raw - mean[:,None]) / np.power(var[:,None] + theta, 0.5)
     return norm
 
 def EvaluateClassifier_BN(X, paras):
@@ -90,6 +92,22 @@ def ComputeAccuracy(X, y, paras):
     acc = 1 - np.count_nonzero(k - y) / len(k)
     return acc
 
+def ComputeAccuracy_Test(X, y, paras, mean_av_list, var_av_list):
+    theta = 1e-5
+    for i in range(len(paras["W"]) - 1):
+        S1 = np.dot(paras["W"][i], X) + paras["b"][i]
+        S_mean = mean_av_list[i]
+        S_var = var_av_list[i]
+        S_norm = (S1 - S_mean[:,None]) / np.power(S_var[:,None] + theta, 0.5)
+        S_rescale = np.multiply(paras["G"][i], S_norm) + paras["B"][i]
+        X = np.maximum(0, S_rescale)
+
+    S = np.dot(paras["W"][-1], X) + paras["b"][-1]
+    p = softmax(S)
+    k = np.argmax(p, axis=0)
+    acc = 1 - np.count_nonzero(k - y) / len(k)
+    return acc
+
 def ComputeLoss(X, Y, paras):
     P = EvaluateClassifier(X, paras)
     l = 0.0
@@ -113,6 +131,30 @@ def ComputeCost(X, Y, paras, lamda):
 
 def ComputeCost_BN(X, Y, paras, lamda):
     P = EvaluateClassifier_BN(X, paras)
+    l = 0.0
+    weight = 0.0
+    for i in range(Y.shape[1]):
+        y = Y[:, [i]]
+        p = P[:, [i]]
+        l += -np.log(np.dot(y.T, p))[0][0]
+    for j in range(len(paras["W"])):
+        weight += np.sum(np.square(paras["W"][j]))
+    reg = lamda * weight
+    J = l / X.shape[1] + reg
+    return J
+
+def ComputeCost_Test(X, Y, paras, lamda, mean_av_list, var_av_list):
+    theta = 1e-5
+    for i in range(len(paras["W"]) - 1):
+        S1 = np.dot(paras["W"][i], X) + paras["b"][i]
+        S_mean = mean_av_list[i]
+        S_var = var_av_list[i]
+        S_norm = (S1 - S_mean[:,None]) / np.power(S_var[:,None] + theta, 0.5)
+        S_rescale = np.multiply(paras["G"][i], S_norm) + paras["B"][i]
+        X = np.maximum(0, S_rescale)
+
+    S = np.dot(paras["W"][-1], X) + paras["b"][-1]
+    P = softmax(S)
     l = 0.0
     weight = 0.0
     for i in range(Y.shape[1]):
@@ -333,12 +375,12 @@ def ComputeGradients(X, Y, paras, lamda):
     update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list}
     return update_para
 
-def BatchNormBackPass(G, S_list, S_mean, S_std):
-    theta = 1e-10
+def BatchNormBackPass(G, S_list, S_mean, S_var):
+    theta = 1e-5
     n = G.shape[1]
     I_n = np.ones(n).reshape(-1, 1)
-    sigma1 = np.power(S_std + theta, -0.5).reshape(-1, 1)
-    sigma2 = np.power(S_std + theta, -1.5).reshape(-1, 1)
+    sigma1 = np.power(S_var + theta, -0.5).reshape(-1, 1)
+    sigma2 = np.power(S_var + theta, -1.5).reshape(-1, 1)
     G1 = np.multiply(G, sigma1)
     G2 = np.multiply(G, sigma2)
     D = S_list - S_mean.reshape(-1, 1)
@@ -346,7 +388,7 @@ def BatchNormBackPass(G, S_list, S_mean, S_std):
     G = G1 - np.dot(np.dot(G1, I_n), I_n.T) / n - np.multiply(D, np.dot(c, I_n.T)) / n
     return G
 
-def ComputeGradients_BN(X, Y, paras, lamda):
+def ComputeGradients_BN(X, Y, paras, lamda, mean_av_list, var_av_list):
     grad_W_list = []
     grad_b_list = []
     grad_G_list = []
@@ -354,20 +396,22 @@ def ComputeGradients_BN(X, Y, paras, lamda):
     X_list = []
     S_list = []
     S_mean_list = []
-    S_std_list = []
+    S_var_list = []
     S_norm_list = []
+    alpha = 0.9
+    theta = 1e-5
 
     X_list.append(X)
     for i in range(len(paras["W"]) - 1):
         S1 = np.dot(paras["W"][i], X) + paras["b"][i]
         S_mean = np.mean(S1, axis = 1)
-        S_std = np.std(S1, axis = 1)
-        S_norm = (S1 - S_mean[:,None]) / S_std[:,None]
+        S_var = np.var(S1, axis = 1)
+        S_norm = (S1 - S_mean[:,None]) / np.power(S_var[:,None] + theta, 0.5)
         S_rescale = np.multiply(paras["G"][i], S_norm) + paras["B"][i]
         X = np.maximum(0, S_rescale)
         S_list.append(S1)
         S_mean_list.append(S_mean)
-        S_std_list.append(np.power(S_std, 2))
+        S_var_list.append(S_var)
         S_norm_list.append(S_norm)
         X_list.append(X)
 
@@ -376,7 +420,6 @@ def ComputeGradients_BN(X, Y, paras, lamda):
     G = -(Y - P)
 
     for j in range(len(paras["W"]) - 1):
-        print(G.shape[1])
         grad_W = np.dot(G, X_list[-(j + 1)].T) / G.shape[1] + 2 * lamda * paras["W"][-(j + 1)]
         grad_b = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
         grad_W_list.append(grad_W)
@@ -393,17 +436,25 @@ def ComputeGradients_BN(X, Y, paras, lamda):
         grad_B_list.append(grad_B)
 
         G = np.multiply(G, paras["G"][-(j + 1)])
-        G = BatchNormBackPass(G, S_list[-(j + 1)], S_mean_list[-(j + 1)], S_std_list[-(j + 1)])
+        G = BatchNormBackPass(G, S_list[-(j + 1)], S_mean_list[-(j + 1)], S_var_list[-(j + 1)])
 
     grad_W = np.dot(G, X_list[0].T) / G.shape[1] + 2 * lamda * paras["W"][0]
     grad_b = np.dot(G, np.ones(G.shape[1]).reshape(-1, 1)) / G.shape[1]
     grad_W_list.append(grad_W)
     grad_b_list.append(grad_b)
 
-    update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list, 'grad_G': grad_G_list, 'grad_B': grad_B_list}
-    return update_para
+    if len(mean_av_list) == 0:
+        mean_av_list = S_mean_list
+        var_av_list = S_var_list
+    else:
+        for index in range(len(mean_av_list)):
+            mean_av_list[i] = alpha * mean_av_list[i] + (1 - alpha) * S_mean_list[i]
+            var_av_list[i] = alpha * var_av_list[i] + (1 - alpha) * S_var_list[i]
 
-def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, eta_max, n_s, n_epochs):
+    update_para = {'grad_W': grad_W_list, 'grad_b': grad_b_list, 'grad_G': grad_G_list, 'grad_B': grad_B_list}
+    return update_para, mean_av_list, var_av_list
+
+def MiniBatchGD_BN(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, eta_max, n_s, n_epochs):
     y_train =  normal_representation(Y_train)
     y_val = normal_representation(Y_val)
 
@@ -414,20 +465,18 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, 
     train_acc_list = []
     val_acc_list = []
 
-    train_cost = ComputeCost(X_train, Y_train, paras, lamda)
-    train_cost_list.append(train_cost)
-    val_cost = ComputeCost(X_val, Y_val, paras, lamda)
-    val_cost_list.append(val_cost)
+    mean_av_list = []
+    var_av_list = []
 
-    train_loss = ComputeLoss(X_train, Y_train, paras)
-    train_loss_list.append(train_loss)
-    val_loss = ComputeLoss(X_val, Y_val, paras)
-    val_loss_list.append(val_loss)
-
-    train_acc = ComputeAccuracy(X_train, y_train, paras)
-    train_acc_list.append(train_acc)
-    val_acc = ComputeAccuracy(X_val, y_val, paras)
-    val_acc_list.append(val_acc)
+    # train_cost = ComputeCost(X_train, Y_train, paras, lamda)
+    # train_cost_list.append(train_cost)
+    # val_cost = ComputeCost(X_val, Y_val, paras, lamda)
+    # val_cost_list.append(val_cost)
+    #
+    # train_acc = ComputeAccuracy(X_train, y_train, paras)
+    # train_acc_list.append(train_acc)
+    # val_acc = ComputeAccuracy(X_val, y_val, paras)
+    # val_acc_list.append(val_acc)
 
     for i in range(n_epochs):
         col_idx = np.random.permutation(X_train.shape[1])
@@ -440,7 +489,7 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, 
             j_end = (j + 1) * n_batch
             Xbatch = shuffled_X[:, j_start:j_end]
             Ybatch = shuffled_Y[:, j_start:j_end]
-            update_para = ComputeGradients(Xbatch, Ybatch, paras, lamda)
+            update_para, mean_av_list, var_av_list = ComputeGradients_BN(Xbatch, Ybatch, paras, lamda, mean_av_list, var_av_list)
             if i * loop < n_s:
                 eta_t = eta_min + (i * loop + j) / n_s * (eta_max - eta_min)
             elif 1 * n_s <= i * loop < 2 * n_s:
@@ -467,25 +516,23 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, 
             for k in range(len(paras["W"])):
                 paras["W"][k] -= eta_t * update_para["grad_W"][-(k + 1)]
                 paras["b"][k] -= eta_t * update_para["grad_b"][-(k + 1)]
+            for h in range(len(paras["G"])):
+                paras["G"][h] -= eta_t * update_para["grad_G"][-(h + 1)]
+                paras["B"][h] -= eta_t * update_para["grad_B"][-(h + 1)]
 
-        train_cost = ComputeCost(X_train, Y_train, paras, lamda)
+        train_cost = ComputeCost_Test(X_train, Y_train, paras, lamda, mean_av_list, var_av_list)
         train_cost_list.append(train_cost)
-        val_cost = ComputeCost(X_val, Y_val, paras, lamda)
+        val_cost = ComputeCost_Test(X_val, Y_val, paras, lamda, mean_av_list, var_av_list)
         val_cost_list.append(val_cost)
 
-        train_loss = ComputeLoss(X_train, Y_train, paras)
-        train_loss_list.append(train_loss)
-        val_loss = ComputeLoss(X_val, Y_val, paras)
-        val_loss_list.append(val_loss)
-
-        train_acc = ComputeAccuracy(X_train, y_train, paras)
+        train_acc = ComputeAccuracy_Test(X_train, y_train, paras, mean_av_list, var_av_list)
         train_acc_list.append(train_acc)
-        val_acc = ComputeAccuracy(X_val, y_val, paras)
+        val_acc = ComputeAccuracy_Test(X_val, y_val, paras, mean_av_list, var_av_list)
         val_acc_list.append(val_acc)
 
         print(len(train_cost_list))
-    plt.figure(figsize = (20.0, 5.0))
-    plt.subplot(131)
+    plt.figure(figsize = (15.0, 5.0))
+    plt.subplot(121)
     plt.plot(train_cost_list, 'g', label = "training cost")
     plt.plot(val_cost_list, 'r', label = "validation cost")
     plt.xlabel('epoch')
@@ -496,31 +543,20 @@ def MiniBatchGD(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_min, 
     plt.title('Traning and Validation Cost with Lamda: ' + str(round(lamda, 6)))
     plt.legend(loc = "best")
 
-    plt.subplot(132)
-    plt.plot(train_loss_list, 'g', label = "training loss")
-    plt.plot(val_loss_list, 'r', label = "validation loss")
-    plt.xlabel('epoch')
-    plt.ylabel('loss')
-    plt.xlim(xmin = 0)
-    plt.text(5.0, train_loss_list[-1] + 0.8, "Final training loss: " + str(round(train_loss_list[-1], 3)))
-    plt.text(5.0, train_loss_list[-1] + 0.7, "Final validation loss: " + str(round(val_loss_list[-1], 3)))
-    plt.title('Traning and Validation Loss with Lamda: ' + str(round(lamda, 6)))
-    plt.legend(loc = "best")
-
-    plt.subplot(133)
+    plt.subplot(122)
     plt.plot(train_acc_list, 'g', label = "training accuracy")
     plt.plot(val_acc_list, 'r', label = "validation accuracy")
     plt.xlabel('epoch')
     plt.ylabel('accuracy')
     plt.xlim(xmin = 0)
-    plt.text(5.0, train_acc_list[-1] - 0.3, "Final training accuracy: " + str(round(train_acc_list[-1], 3)))
-    plt.text(5.0, train_acc_list[-1] - 0.35, "Final validation accuracy: " + str(round(val_acc_list[-1], 3)))
+    plt.text(5.0, train_acc_list[-1] - 0.1, "Final training accuracy: " + str(round(train_acc_list[-1], 3)))
+    plt.text(5.0, train_acc_list[-1] - 0.15, "Final validation accuracy: " + str(round(val_acc_list[-1], 3)))
     plt.title('Traning and Validation Accuracy with Lamda: ' + str(round(lamda, 6)))
     plt.legend(loc = "best")
 
     plt.savefig(str(round(lamda, 6)) + "image.png")
     plt.show()
-    return paras
+    return paras, mean_av_list, var_av_list
 
 origin_dataset = LoadBatch('Datasets/cifar-10-batches-py/data_batch_1')
 total_raw_images = np.transpose(origin_dataset[bytes("data", "utf-8")] / 255.0)
@@ -549,21 +585,31 @@ train_norm_imgs = Normalization(train_raw_images)
 val_norm_imgs = Normalization(val_raw_images)
 test_norm_imgs = Normalization(test_raw_images)
 
-paras = Initialization(dims, True)
+for i in range(5):
+    paras = Initialization(dims, True)
+    l_min, l_max = -2.5, -2.1
+    l = l_min + (l_max - l_min) * i / 4.0
+    lamda = 10 ** l
 
-lamda = 0.005
-
-# final_para = MiniBatchGD(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
-# acc = ComputeAccuracy(test_norm_imgs, test_labels, final_para)
-# print(acc)
+    final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
+    acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
+    print(acc)
 
 #update_para1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
 #update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
 #update_para3 = ComputeGradients(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0)
-update_para4 = ComputeGradsNum_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
-update_para5 = ComputeGradients_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0)
-print([update_para5["grad_W"][5] - update_para4["grad_W"][-6], update_para5["grad_b"][5] - update_para4["grad_b"][-6]])
-print([update_para5["grad_G"][3] - update_para4["grad_G"][-4], update_para5["grad_B"][3] - update_para4["grad_B"][-4]])
+# update_para4 = ComputeGradsNum_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
+# update_para5, mean_av, std_av = ComputeGradients_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, [], [])
+# diff_W, diff_b, diff_G, diff_B = 0, 0, 0, 0
+# for i in range(len(update_para4["grad_W"])):
+#     diff_W += np.sum(np.absolute(update_para5["grad_W"][i] - update_para4["grad_W"][-(i + 1)]))
+#     diff_b += np.sum(np.absolute(update_para5["grad_b"][i] - update_para4["grad_b"][-(i + 1)]))
+# for i in range(len(update_para4["grad_G"])):
+#     diff_G += np.sum(np.absolute(update_para5["grad_G"][i] - update_para4["grad_G"][-(i + 1)]))
+#     diff_B += np.sum(np.absolute(update_para5["grad_B"][i] - update_para4["grad_B"][-(i + 1)]))
+# print([diff_W, diff_b, diff_G, diff_B])
+# print([update_para5["grad_W"][5] - update_para4["grad_W"][-6], update_para5["grad_b"][5] - update_para4["grad_b"][-6]])
+# print([update_para5["grad_G"][1] - update_para4["grad_G"][-2], update_para5["grad_B"][1] - update_para4["grad_B"][-2]])
 #print([update_para1["grad_W"][0] - update_para2["grad_W"][0], update_para1["grad_b"][0] - update_para2["grad_b"][0], update_para1["grad_W"][1] - update_para2["grad_W"][1], update_para1["grad_b"][1] - update_para2["grad_b"][1]])
 #print([update_para3["grad_W"][1] - update_para1["grad_W"][0], update_para3["grad_b"][1] - update_para1["grad_b"][0], update_para3["grad_W"][0] - update_para1["grad_W"][1], update_para3["grad_b"][0] - update_para1["grad_b"][1]])
 #print([update_para5["grad_W"][-1] - update_para4["grad_W"][0], update_para5["grad_b"][-1] - update_para4["grad_b"][0], update_para5["grad_W"][-2] - update_para4["grad_W"][1], update_para5["grad_b"][-2] - update_para4["grad_b"][1]])
