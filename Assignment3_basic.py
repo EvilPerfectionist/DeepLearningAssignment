@@ -398,7 +398,7 @@ def ComputeGradients_BN(X, Y, paras, lamda, mean_av_list, var_av_list):
     S_mean_list = []
     S_var_list = []
     S_norm_list = []
-    alpha = 0.85
+    alpha = 0.8
     theta = 1e-10
 
     X_list.append(X)
@@ -555,7 +555,7 @@ def MiniBatchGD_BN(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_mi
     plt.legend(loc = "best")
 
     plt.savefig(str(round(lamda, 6)) + "image.png")
-    plt.show()
+    #plt.show()
     return paras, mean_av_list, var_av_list
 
 origin_dataset = LoadBatch('Datasets/cifar-10-batches-py/data_batch_1')
@@ -586,11 +586,11 @@ val_norm_imgs = Normalization(val_raw_images)
 test_norm_imgs = Normalization(test_raw_images)
 
 paras = Initialization(dims, True)
-lamda = 0.005
+lamda = 0.004571
 
-final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
-acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
-print(acc)
+# final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 30)
+# acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
+# print(acc)
 
 #update_para1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
 #update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
@@ -619,4 +619,5 @@ print(acc)
 aa = np.array([[1, 2, 3], [4, 5, 6]])
 cc = np.array([2, 3]).reshape(-1, 1).T
 # bb = np.multiply(aa, cc)
-print(aa - cc.T)
+for i in range(5):
+    print(np.random.permutation(aa.shape[1]))
