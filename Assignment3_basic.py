@@ -5,7 +5,7 @@ import copy
 
 dim = 3072
 num_labs = 10
-dims = [3072, 50, 50, 10]
+dims = [3072, 50, 30, 20, 20, 10, 10, 10, 10, 10]
 
 def Initialization(dims, with_bn):
     W_list = []
@@ -586,38 +586,19 @@ val_norm_imgs = Normalization(val_raw_images)
 test_norm_imgs = Normalization(test_raw_images)
 
 paras = Initialization(dims, True)
-lamda = 0.004571
+lamda = 0.005
 
 # final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 30)
 # acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
 # print(acc)
 
-#update_para1 = ComputeGradsNum(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
-#update_para2 = ComputeGradsNumSlow(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
-#update_para3 = ComputeGradients(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0)
-# update_para4 = ComputeGradsNum_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
-# update_para5, mean_av, std_av = ComputeGradients_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, [], [])
-# diff_W, diff_b, diff_G, diff_B = 0, 0, 0, 0
-# for i in range(len(update_para4["grad_W"])):
-#     diff_W += np.sum(np.absolute(update_para5["grad_W"][i] - update_para4["grad_W"][-(i + 1)]))
-#     diff_b += np.sum(np.absolute(update_para5["grad_b"][i] - update_para4["grad_b"][-(i + 1)]))
-# for i in range(len(update_para4["grad_G"])):
-#     diff_G += np.sum(np.absolute(update_para5["grad_G"][i] - update_para4["grad_G"][-(i + 1)]))
-#     diff_B += np.sum(np.absolute(update_para5["grad_B"][i] - update_para4["grad_B"][-(i + 1)]))
-# print([diff_W, diff_b, diff_G, diff_B])
-# print([update_para5["grad_W"][5] - update_para4["grad_W"][-6], update_para5["grad_b"][5] - update_para4["grad_b"][-6]])
-# print([update_para5["grad_G"][1] - update_para4["grad_G"][-2], update_para5["grad_B"][1] - update_para4["grad_B"][-2]])
-#print([update_para1["grad_W"][0] - update_para2["grad_W"][0], update_para1["grad_b"][0] - update_para2["grad_b"][0], update_para1["grad_W"][1] - update_para2["grad_W"][1], update_para1["grad_b"][1] - update_para2["grad_b"][1]])
-#print([update_para3["grad_W"][1] - update_para1["grad_W"][0], update_para3["grad_b"][1] - update_para1["grad_b"][0], update_para3["grad_W"][0] - update_para1["grad_W"][1], update_para3["grad_b"][0] - update_para1["grad_b"][1]])
-#print([update_para5["grad_W"][-1] - update_para4["grad_W"][0], update_para5["grad_b"][-1] - update_para4["grad_b"][0], update_para5["grad_W"][-2] - update_para4["grad_W"][1], update_para5["grad_b"][-2] - update_para4["grad_b"][1]])
-#print([update_para3["grad_W"][1] - update_para1["grad_W"][0], update_para3["grad_b"][1] - update_para1["grad_b"][0], update_para3["grad_W"][0] - update_para1["grad_W"][1], update_para3["grad_b"][0] - update_para1["grad_b"][1]])
-# aa = np.array([[1, 2, 3]])
-# bb = np.array([[4, 5, 6]])
-# cc = [aa, bb]
-# print(cc[1])
-# print(len(cc))
-aa = np.array([[1, 2, 3], [4, 5, 6]])
-cc = np.array([2, 3]).reshape(-1, 1).T
-# bb = np.multiply(aa, cc)
-for i in range(5):
-    print(np.random.permutation(aa.shape[1]))
+update_para4 = ComputeGradsNum_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
+update_para5, mean_av, std_av = ComputeGradients_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, [], [])
+for i in range(len(update_para4["grad_W"])):
+    diff_W = np.sum(np.absolute(update_para5["grad_W"][i] - update_para4["grad_W"][-(i + 1)]))
+    diff_b = np.sum(np.absolute(update_para5["grad_b"][i] - update_para4["grad_b"][-(i + 1)]))
+    print([diff_W, diff_b])
+for i in range(len(update_para4["grad_G"])):
+    diff_G = np.sum(np.absolute(update_para5["grad_G"][i] - update_para4["grad_G"][-(i + 1)]))
+    diff_B = np.sum(np.absolute(update_para5["grad_B"][i] - update_para4["grad_B"][-(i + 1)]))
+    print([diff_G, diff_B])
