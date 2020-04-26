@@ -5,7 +5,7 @@ import copy
 
 dim = 3072
 num_labs = 10
-dims = [3072, 50, 30, 20, 20, 10, 10, 10, 10, 10]
+dims = [3072, 50, 50, 10]
 
 def Initialization(dims, with_bn):
     W_list = []
@@ -398,7 +398,7 @@ def ComputeGradients_BN(X, Y, paras, lamda, mean_av_list, var_av_list):
     S_mean_list = []
     S_var_list = []
     S_norm_list = []
-    alpha = 0.8
+    alpha = 0.9
     theta = 1e-10
 
     X_list.append(X)
@@ -467,16 +467,6 @@ def MiniBatchGD_BN(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_mi
 
     mean_av_list = []
     var_av_list = []
-
-    # train_cost = ComputeCost(X_train, Y_train, paras, lamda)
-    # train_cost_list.append(train_cost)
-    # val_cost = ComputeCost(X_val, Y_val, paras, lamda)
-    # val_cost_list.append(val_cost)
-    #
-    # train_acc = ComputeAccuracy(X_train, y_train, paras)
-    # train_acc_list.append(train_acc)
-    # val_acc = ComputeAccuracy(X_val, y_val, paras)
-    # val_acc_list.append(val_acc)
 
     for i in range(n_epochs):
         col_idx = np.random.permutation(X_train.shape[1])
@@ -585,20 +575,11 @@ train_norm_imgs = Normalization(train_raw_images)
 val_norm_imgs = Normalization(val_raw_images)
 test_norm_imgs = Normalization(test_raw_images)
 
-paras = Initialization(dims, True)
-lamda = 0.005
-
-# final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 30)
-# acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
-# print(acc)
-
-update_para4 = ComputeGradsNum_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, 1e-5)
-update_para5, mean_av, std_av = ComputeGradients_BN(train_norm_imgs[:, 1:10], train_one_hot_labels[:, 1:10], paras, 0, [], [])
-for i in range(len(update_para4["grad_W"])):
-    diff_W = np.sum(np.absolute(update_para5["grad_W"][i] - update_para4["grad_W"][-(i + 1)]))
-    diff_b = np.sum(np.absolute(update_para5["grad_b"][i] - update_para4["grad_b"][-(i + 1)]))
-    print([diff_W, diff_b])
-for i in range(len(update_para4["grad_G"])):
-    diff_G = np.sum(np.absolute(update_para5["grad_G"][i] - update_para4["grad_G"][-(i + 1)]))
-    diff_B = np.sum(np.absolute(update_para5["grad_B"][i] - update_para4["grad_B"][-(i + 1)]))
-    print([diff_G, diff_B])
+for i in range(11):
+    paras = Initialization(dims, True)
+    l_min, l_max = -2.6, -2.0
+    l = l_min + (l_max - l_min) * i / 10.0
+    lamda = 10 ** l
+    final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
+    acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
+    print(acc)
