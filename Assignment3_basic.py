@@ -2,10 +2,83 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import copy
+import tensorflow as tf
 
 dim = 3072
 num_labs = 10
 dims = [3072, 50, 50, 10]
+
+def flip(x: tf.Tensor) -> tf.Tensor:
+    """Flip augmentation
+
+    Args:
+        x: Image to flip
+
+    Returns:
+        Augmented image
+    """
+    x = tf.image.random_flip_left_right(x)
+    x = tf.image.random_flip_up_down(x)
+
+    return x
+
+def color(x: tf.Tensor) -> tf.Tensor:
+    """Color augmentation
+
+    Args:
+        x: Image
+
+    Returns:
+        Augmented image
+    """
+    x = tf.image.random_hue(x, 0.08)
+    x = tf.image.random_saturation(x, 0.6, 1.6)
+    x = tf.image.random_brightness(x, 0.05)
+    x = tf.image.random_contrast(x, 0.7, 1.3)
+    return x
+
+def rotate(x: tf.Tensor) -> tf.Tensor:
+    """Rotation augmentation
+
+    Args:
+        x: Image
+
+    Returns:
+        Augmented image
+    """
+
+    return tf.image.rot90(x, tf.random.uniform(shape=[], minval=0, maxval=4, dtype=tf.int32))
+
+def zoom(x: tf.Tensor) -> tf.Tensor:
+    """Zoom augmentation
+
+    Args:
+        x: Image
+
+    Returns:
+        Augmented image
+    """
+
+    # Generate 20 crop settings, ranging from a 1% to 20% crop.
+    scales = list(np.arange(0.8, 1.0, 0.01))
+    boxes = np.zeros((len(scales), 4))
+
+    for i, scale in enumerate(scales):
+        x1 = y1 = 0.5 - (0.5 * scale)
+        x2 = y2 = 0.5 + (0.5 * scale)
+        boxes[i] = [x1, y1, x2, y2]
+
+    def random_crop(img):
+        # Create different crops for an image
+        crops = tf.image.crop_and_resize([img], boxes=boxes, box_indices=np.zeros(len(scales)), crop_size=(32, 32))
+        # Return a random crop
+        return crops[tf.random.uniform(shape=[], minval=0, maxval=len(scales), dtype=tf.int32)]
+
+
+    choice = tf.random.uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
+
+    # Only apply cropping 50% of the time
+    return tf.cond(choice < 0.5, lambda: x, lambda: random_crop(x))
 
 def Initialization(dims, with_bn):
     W_list = []
@@ -479,7 +552,17 @@ def MiniBatchGD_BN(X_train, Y_train, X_val, Y_val, paras, lamda, n_batch, eta_mi
             j_end = (j + 1) * n_batch
             Xbatch = shuffled_X[:, j_start:j_end]
             Ybatch = shuffled_Y[:, j_start:j_end]
-            update_para, mean_av_list, var_av_list = ComputeGradients_BN(Xbatch, Ybatch, paras, lamda, mean_av_list, var_av_list)
+            X_data = Xbatch.T.reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1).astype(np.float32)
+            X_dataset = tf.data.Dataset.from_tensor_slices(X_data)
+            augmentations = [color, zoom]
+            for f in augmentations:
+                X_dataset = X_dataset.map(lambda x: tf.cond(tf.random.uniform([], 0, 1) > 0.5, lambda: f(x), lambda: x), num_parallel_calls=8)
+            X_dataset = X_dataset.map(lambda x: tf.clip_by_value(x, 0, 1))
+            new_Xbatch = np.empty((3072, 0))
+            for z in X_dataset:
+                back = z.numpy().transpose(2, 0, 1).reshape(3072, 1)
+                new_Xbatch = np.append(new_Xbatch, back, axis = 1)
+            update_para, mean_av_list, var_av_list = ComputeGradients_BN(new_Xbatch, Ybatch, paras, lamda, mean_av_list, var_av_list)
             if i * loop < n_s:
                 eta_t = eta_min + (i * loop + j) / n_s * (eta_max - eta_min)
             elif 1 * n_s <= i * loop < 2 * n_s:
@@ -575,11 +658,8 @@ train_norm_imgs = Normalization(train_raw_images)
 val_norm_imgs = Normalization(val_raw_images)
 test_norm_imgs = Normalization(test_raw_images)
 
-for i in range(11):
-    paras = Initialization(dims, True)
-    l_min, l_max = -2.6, -2.0
-    l = l_min + (l_max - l_min) * i / 10.0
-    lamda = 10 ** l
-    final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
-    acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
-    print(acc)
+paras = Initialization(dims, True)
+lamda = 10 ** -2.18
+final_para, mean_av_list, var_av_list = MiniBatchGD_BN(train_norm_imgs, train_one_hot_labels, val_norm_imgs, val_one_hot_labels, paras, lamda, 100, 1e-5, 1e-1, 2250, 20)
+acc = ComputeAccuracy_Test(test_norm_imgs, test_labels, final_para, mean_av_list, var_av_list)
+print(acc)
