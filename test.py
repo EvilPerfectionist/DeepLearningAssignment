@@ -48,9 +48,6 @@ class Vanilla_RNN:
 
         self.h0 = np.zeros((self.m, 1))
 
-        self.initialization()
-
-    def initialization(self):
         mu = 0
         sigma = 0.01
 
@@ -144,86 +141,6 @@ class Vanilla_RNN:
             x[label] = 1
 
         return Y
-
-    def fit(self, book_data):
-
-        n = len(book_data)
-        nb_seq = ceil(float(n-1) / float(self.seq_length))
-        smooth_loss = 0
-        ite = 0
-        losses = []
-
-        for i in range(self.nb_epochs):
-            e = 0
-            hprev = np.random.normal(0, 0.01, self.h0.shape)
-
-            # if i != 0:
-            #     self.eta /= 10
-
-            print("epoch:", i)
-
-            for j in range(nb_seq):
-
-                if j == nb_seq-1:
-                    X_chars = book_data[e:n - 2]
-                    Y_chars = book_data[e + 1:n - 1]
-                    e = n
-                else:
-                    X_chars = book_data[e:e + self.seq_length]
-                    Y_chars = book_data[e + 1:e + self.seq_length + 1]
-                    e += self.seq_length
-
-                X = np.zeros((self.d, len(X_chars)), dtype=int)
-                Y = np.zeros((self.K, len(X_chars)), dtype=int)
-
-                for i in range(len(X_chars)):
-                    X[:, i] = char_to_ind(X_chars[i], self.char_list)
-                    Y[:, i] = char_to_ind(Y_chars[i], self.char_list)
-
-                P, H1, A = self.forward_pass(
-                    X, hprev, self.b, self.c, self.W, self.U, self.V)
-
-                H0 = np.zeros((self.m, len(X_chars)))
-                H0[:, [0]] = self.h0
-                H0[:, 1:] = H1[:, :-1]
-
-                self.compute_gradients(P, X, Y, H1, H0, A, self.V, self.W)
-
-                loss = self.computeCost(P, Y)
-                if smooth_loss !=0:
-                    smooth_loss = 0.999 * smooth_loss + 0.001 * loss
-                else:
-                    smooth_loss = loss
-
-                self.m_b += np.multiply(self.grad_b, self.grad_b)
-                self.m_c += np.multiply(self.grad_c, self.grad_c)
-                self.m_U += np.multiply(self.grad_U, self.grad_U)
-                self.m_W += np.multiply(self.grad_W, self.grad_W)
-                self.m_V += np.multiply(self.grad_V, self.grad_V)
-
-                self.b -= np.multiply(self.eta / np.sqrt(self.m_b + self.epsilon), self.grad_b)
-                self.c -= np.multiply(self.eta / np.sqrt(self.m_c + self.epsilon), self.grad_c)
-                self.U -= np.multiply(self.eta / np.sqrt(self.m_U + self.epsilon), self.grad_U)
-                self.W -= np.multiply(self.eta / np.sqrt(self.m_W + self.epsilon), self.grad_W)
-                self.V -= np.multiply(self.eta / np.sqrt(self.m_V + self.epsilon), self.grad_V)
-
-                hprev = H1[:, [-1]]
-
-                if ite % 100 == 0:
-                    losses.append(smooth_loss)
-
-                if ite % 1000 == 0:
-                    print("ite:", ite, "smooth_loss:", smooth_loss)
-
-                if ite % 10000 == 0:
-                    Y_temp = self.synthezise_text(X[:, [0]], hprev, 200, self.b, self.c, self.W, self.U, self.V)
-                    string = ""
-                    for i in range(Y_temp.shape[1]):
-                        string += ind_to_char(Y_temp[:, [i]], self.char_list)
-
-                    print(string)
-
-                ite += 1
 
     def forward_pass2(self, X, h, b, c, W, U, V):
         h_list = np.zeros((self.m, X.shape[1]))
